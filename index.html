@@ -13,7 +13,6 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #map { height: calc(100vh - 180px); width: 100%; z-index: 10; }
-        .dark-mode { background-color: #121212; color: #e0e0e0; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden">
@@ -67,7 +66,6 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 70 Postos extraídos diretamente do seu arquivo My Maps
         const stations = [
             {"id": 1, "name": "Posto Rede Pedro Pelanda", "desc": "", "lat": -26.7040988, "lng": -50.2914305, "highway": "Rede Pelanda"},
             {"id": 2, "name": "Posto Pelanda Caraguata", "desc": "", "lat": -25.3261709, "lng": -49.0265931, "highway": "Rede Pelanda"},
@@ -145,7 +143,6 @@
 
         document.getElementById('station-count').innerText = `${stations.length} postos cadastrados`;
 
-        // Inicializar o Mapa
         function initMap() {
             map = L.map('map').setView([-15.7889, -49.9596], 5);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -159,7 +156,6 @@
         }
 
         function renderMarkers(data) {
-            // Limpar antigos se houver
             Object.values(markers).forEach(m => map.removeLayer(m));
             markers = {};
 
@@ -207,7 +203,7 @@
                     </div>
                     <div class="flex gap-2 mt-3 pt-2 border-t border-slate-700/60">
                         <a href="https://www.waze.com/ul?ll=${station.lat},${station.lng}&navigate=yes" target="_blank" class="flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-brands fa-waze mr-1"></i> Waze</a>
-                        <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-solid fa-map-location-dot mr-1"></i> Google Maps</a>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-solid fa-map-location-dot mr-1"></i> Maps</a>
                         <button onclick="focusOnMap(${station.lat}, ${station.lng})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold"><i class="fa-solid fa-eye"></i></button>
                     </div>
                 `;
@@ -257,7 +253,6 @@
                     userLatLng = [position.coords.latitude, position.coords.longitude];
                     document.getElementById('gps-status').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> GPS Ativo`;
                     
-                    // Ordenar lista por proximidade se estiver na lista
                     stations.sort((a, b) => {
                         const distA = calcDistance(userLatLng[0], userLatLng[1], a.lat, a.lng);
                         const distB = calcDistance(userLatLng[0], userLatLng[1], b.lat, b.lng);
@@ -280,7 +275,7 @@
         }
 
         function calcDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Raio da terra em km
+            const R = 6371;
             const dLat = deg2rad(lat2 - lat1);
             const dLon = deg2rad(lon2 - lon1);
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
