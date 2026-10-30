@@ -13,6 +13,13 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         #map { height: calc(100vh - 180px); width: 100%; z-index: 10; }
+        .custom-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden">
@@ -20,7 +27,7 @@
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 p-3 flex justify-between items-center shadow-md z-20">
         <div class="flex items-center space-x-2">
-            <div class="bg-amber-500 text-slate-900 p-2 rounded-lg font-bold">
+            <div class="bg-emerald-500 text-slate-900 p-2 rounded-lg font-bold">
                 <i class="fa-solid fa-gas-pump"></i>
             </div>
             <div>
@@ -29,7 +36,7 @@
             </div>
         </div>
         <div class="flex space-x-2">
-            <button onclick="switchTab('map')" id="btn-map" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition"><i class="fa-solid fa-map mr-1"></i> Mapa</button>
+            <button onclick="switchTab('map')" id="btn-map" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-900 transition"><i class="fa-solid fa-map mr-1"></i> Mapa</button>
             <button onclick="switchTab('list')" id="btn-list" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition"><i class="fa-solid fa-list mr-1"></i> Lista</button>
         </div>
     </header>
@@ -40,10 +47,10 @@
             <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
                 <i class="fa-solid fa-search"></i>
             </span>
-            <input type="text" id="search-input" oninput="filterStations()" placeholder="Buscar por posto, rodovia ou cidade..." class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-amber-500">
+            <input type="text" id="search-input" oninput="filterStations()" placeholder="Buscar por posto, rodovia ou cidade..." class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500">
         </div>
-        <button onclick="centerOnUser()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center transition" title="Minha Localização">
-            <i class="fa-solid fa-location-crosshairs text-base"></i>
+        <button onclick="centerOnUser()" class="bg-slate-700 hover:bg-slate-600 text-blue-400 px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center transition" title="Minha Localização">
+            <i class="fa-solid fa-truck text-base"></i>
         </button>
     </div>
 
@@ -59,7 +66,7 @@
 
     <!-- Footer / Barra de Status GPS -->
     <footer class="bg-slate-800 border-t border-slate-700 px-4 py-2 text-xs text-slate-400 flex justify-between items-center z-20">
-        <span id="gps-status"><i class="fa-solid fa-circle-notch fa-spin text-amber-500 mr-1"></i> Obtendo GPS...</span>
+        <span id="gps-status"><i class="fa-solid fa-circle-notch fa-spin text-emerald-500 mr-1"></i> Obtendo GPS...</span>
         <span class="text-slate-500">Frota S10 Autorizada</span>
     </footer>
 
@@ -139,7 +146,7 @@
             {"id": 70, "name": "Posto Monte Carlo - São Paulo", "desc": "", "lat": -23.558291, "lng": -46.633829, "highway": "Rodovia Federal"}
         ];
 
-        let map, userLatLng = null, markers = {};
+        let map, userLatLng = null, markers = {}, userMarker = null;
 
         document.getElementById('station-count').innerText = `${stations.length} postos cadastrados`;
 
@@ -155,12 +162,30 @@
             trackUserLocation();
         }
 
+        // Ícone personalizado para os postos (Bomba de combustível verde)
+        const greenFuelIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div class="custom-pin" style="background-color: #10b981; color: white; width: 32px; height: 32px; font-size: 14px; border: 2px solid white;"><i class="fa-solid fa-gas-pump"></i></div>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -16]
+        });
+
+        // Ícone personalizado para o motorista (Caminhão azul)
+        const blueTruckIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div class="custom-pin" style="background-color: #3b82f6; color: white; width: 38px; height: 38px; font-size: 16px; border: 3px solid white; box-shadow: 0 0 10px rgba(59,130,246,0.8);"><i class="fa-solid fa-truck"></i></div>`,
+            iconSize: [38, 38],
+            iconAnchor: [19, 19],
+            popupAnchor: [0, -19]
+        });
+
         function renderMarkers(data) {
             Object.values(markers).forEach(m => map.removeLayer(m));
             markers = {};
 
             data.forEach(station => {
-                const marker = L.marker([station.lat, station.lng]).addTo(map);
+                const marker = L.marker([station.lat, station.lng], { icon: greenFuelIcon }).addTo(map);
                 marker.bindPopup(`
                     <div class="p-1 text-slate-900">
                         <h3 class="font-bold text-sm">${station.name}</h3>
@@ -188,7 +213,7 @@
                 let distText = '';
                 if(userLatLng) {
                     const dist = calcDistance(userLatLng[0], userLatLng[1], station.lat, station.lng);
-                    distText = `<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-route"></i> ${dist.toFixed(1)} km</span>`;
+                    distText = `<span class="bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-route"></i> ${dist.toFixed(1)} km</span>`;
                 }
 
                 const card = document.createElement('div');
@@ -203,7 +228,7 @@
                     </div>
                     <div class="flex gap-2 mt-3 pt-2 border-t border-slate-700/60">
                         <a href="https://www.waze.com/ul?ll=${station.lat},${station.lng}&navigate=yes" target="_blank" class="flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-brands fa-waze mr-1"></i> Waze</a>
-                        <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-solid fa-map-location-dot mr-1"></i> Maps</a>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-solid fa-map-location-dot mr-1"></i> Google Maps</a>
                         <button onclick="focusOnMap(${station.lat}, ${station.lng})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold"><i class="fa-solid fa-eye"></i></button>
                     </div>
                 `;
@@ -218,13 +243,13 @@
             const listEl = document.getElementById('view-list');
 
             if(tab === 'map') {
-                mapBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition";
+                mapBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-900 transition";
                 listBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition";
                 mapEl.classList.remove('hidden');
                 listEl.classList.add('hidden');
                 setTimeout(() => { map.invalidateSize(); }, 200);
             } else {
-                listBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition";
+                listBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 text-slate-900 transition";
                 mapBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition";
                 listEl.classList.remove('hidden');
                 mapEl.classList.add('hidden');
@@ -251,7 +276,14 @@
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition(position => {
                     userLatLng = [position.coords.latitude, position.coords.longitude];
-                    document.getElementById('gps-status').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> GPS Ativo`;
+                    document.getElementById('gps-status').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> GPS Ativo (Sua Posição)`;
+
+                    if (userMarker) {
+                        userMarker.setLatLng(userLatLng);
+                    } else {
+                        userMarker = L.marker(userLatLng, { icon: blueTruckIcon }).addTo(map)
+                            .bindPopup("<b>Sua Localização (Caminhão)</b>");
+                    }
                     
                     stations.sort((a, b) => {
                         const distA = calcDistance(userLatLng[0], userLatLng[1], a.lat, a.lng);
@@ -268,9 +300,9 @@
         function centerOnUser() {
             if(userLatLng) {
                 switchTab('map');
-                map.setView(userLatLng, 12);
+                map.setView(userLatLng, 13);
             } else {
-                alert("Aguardando sinal do GPS...");
+                alert("Aguardando sinal do GPS do celular...");
             }
         }
 
