@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Postos S10 Liberados - Frota</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        #map { height: calc(100vh - 180px); width: 100%; z-index: 10; }
+        .dark-mode { background-color: #121212; color: #e0e0e0; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 p-3 flex justify-between items-center shadow-md z-20">
+        <div class="flex items-center space-x-2">
+            <div class="bg-amber-500 text-slate-900 p-2 rounded-lg font-bold">
+                <i class="fa-solid fa-gas-pump"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base leading-tight">Postos S10 Liberados</h1>
+                <p class="text-xs text-slate-400" id="station-count">Carregando postos...</p>
+            </div>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="switchTab('map')" id="btn-map" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition"><i class="fa-solid fa-map mr-1"></i> Mapa</button>
+            <button onclick="switchTab('list')" id="btn-list" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition"><i class="fa-solid fa-list mr-1"></i> Lista</button>
+        </div>
+    </header>
+
+    <!-- Barra de Busca e Filtros -->
+    <div class="bg-slate-800/90 px-3 py-2 border-b border-slate-700 z-20 flex gap-2">
+        <div class="relative flex-1">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-search"></i>
+            </span>
+            <input type="text" id="search-input" oninput="filterStations()" placeholder="Buscar por posto, rodovia ou cidade..." class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-amber-500">
+        </div>
+        <button onclick="centerOnUser()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center transition" title="Minha Localização">
+            <i class="fa-solid fa-location-crosshairs text-base"></i>
+        </button>
+    </div>
+
+    <!-- Conteúdo Principal: Mapa -->
+    <main id="view-map" class="relative flex-1">
+        <div id="map"></div>
+    </main>
+
+    <!-- Conteúdo Principal: Lista -->
+    <main id="view-list" class="flex-1 overflow-y-auto p-3 hidden space-y-3">
+        <!-- Lista injetada via JS -->
+    </main>
+
+    <!-- Footer / Barra de Status GPS -->
+    <footer class="bg-slate-800 border-t border-slate-700 px-4 py-2 text-xs text-slate-400 flex justify-between items-center z-20">
+        <span id="gps-status"><i class="fa-solid fa-circle-notch fa-spin text-amber-500 mr-1"></i> Obtendo GPS...</span>
+        <span class="text-slate-500">Frota S10 Autorizada</span>
+    </footer>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 70 Postos extraídos diretamente do seu arquivo My Maps
+        const stations = [
+            {"id": 1, "name": "Posto Rede Pedro Pelanda", "desc": "", "lat": -26.7040988, "lng": -50.2914305, "highway": "Rede Pelanda"},
+            {"id": 2, "name": "Posto Pelanda Caraguata", "desc": "", "lat": -25.3261709, "lng": -49.0265931, "highway": "Rede Pelanda"},
+            {"id": 3, "name": "Rod. Raposo Tavares", "desc": " 2974", "lat": -21.7826678, "lng": -52.1485176, "highway": "Rod. Raposo Tavares"},
+            {"id": 4, "name": "Posto Dom Pedro Inhapim", "desc": "", "lat": -19.4961227, "lng": -42.1282273, "highway": "Rede Dom Pedro"},
+            {"id": 5, "name": "Posto Cinquentão", "desc": "", "lat": -19.2943046, "lng": -48.1155375, "highway": "Rodovia Federal"},
+            {"id": 6, "name": "Posto São Tomaz de Aquino", "desc": "", "lat": -16.9546866, "lng": -53.5243077, "highway": "Rodovia Federal"},
+            {"id": 7, "name": "Posto Aldo Linho", "desc": "", "lat": -16.5028883, "lng": -54.6271995, "highway": "Rede Aldo"},
+            {"id": 8, "name": "Posto Aldo Cuiabá", "desc": "", "lat": -15.6689839, "lng": -55.9547334, "highway": "Rede Aldo"},
+            {"id": 9, "name": "Posto Carreteiro 2 - Porangatu", "desc": "", "lat": -13.4455882, "lng": -49.1333738, "highway": "Rodovia Federal"},
+            {"id": 10, "name": "Posto Dom Pedro Santo Estevão 1", "desc": "", "lat": -12.538463, "lng": -39.429759, "highway": "Rede Dom Pedro"},
+            {"id": 11, "name": "Auto Posto 515 (Shell)", "desc": "", "lat": -9.9052927, "lng": -63.0566075, "highway": "Rodovia Federal"},
+            {"id": 12, "name": "Petrobras Posto Pelanda São Mateus", "desc": "", "lat": -25.9740068, "lng": -50.5447583, "highway": "Rede Pelanda"},
+            {"id": 13, "name": "Petrobras Posto Copa", "desc": "", "lat": -25.3439242, "lng": -51.4413682, "highway": "Rodovia Federal"},
+            {"id": 14, "name": "Posto Transoja - Petronas", "desc": "", "lat": -24.9778185, "lng": -53.3856278, "highway": "Rodovia Federal"},
+            {"id": 15, "name": "Posto Juninho - Tibagi", "desc": "", "lat": -24.5431643, "lng": -50.6935975, "highway": "Rodovia Federal"},
+            {"id": 16, "name": "Posto Mahle - Leão", "desc": "", "lat": -23.1845625, "lng": -51.1913125, "highway": "Rodovia Federal"},
+            {"id": 17, "name": "Rede Petro Sertanópolis", "desc": "", "lat": -23.0569851, "lng": -51.0545415, "highway": "Rodovia Federal"},
+            {"id": 18, "name": "🥇 Auto Posto São Roque", "desc": "", "lat": -11.9675564, "lng": -60.9566423, "highway": "Rodovia Federal"},
+            {"id": 19, "name": "Posto União - Ipiranga", "desc": "", "lat": -11.6998203, "lng": -61.17056, "highway": "Rodovia Federal"},
+            {"id": 20, "name": "Rede de Postos Toca da Onça Porto Franco", "desc": "", "lat": -6.4662001, "lng": -47.3970811, "highway": "Rodovia Federal"},
+            {"id": 21, "name": "Graal Taquari", "desc": "", "lat": -22.8646192, "lng": -49.1577888, "highway": "Rede Graal"},
+            {"id": 22, "name": "Posto Fátima", "desc": "", "lat": -21.965947, "lng": -47.967123, "highway": "Rodovia Federal"},
+            {"id": 23, "name": "Posto Dom Pedro Jacareí Urbano", "desc": "", "lat": -23.2628574, "lng": -45.9561649, "highway": "Rede Dom Pedro"},
+            {"id": 24, "name": "Posto JR Faisão Ltda", "desc": "", "lat": -15.8097173, "lng": -41.3772358, "highway": "Rodovia Federal"},
+            {"id": 25, "name": "Posto JR Faisão V Ltda", "desc": "", "lat": -19.1522242, "lng": -44.5345948, "highway": "Rodovia Federal"},
+            {"id": 26, "name": "Posto Petrobras", "desc": "", "lat": -28.068484, "lng": -48.7137303, "highway": "Rodovia Federal"},
+            {"id": 27, "name": "Graal GP Sul", "desc": "", "lat": -26.7809177, "lng": -48.6847788, "highway": "Rede Graal"},
+            {"id": 28, "name": "Posto Sinuelo Sul", "desc": "", "lat": -26.5166864, "lng": -48.72104, "highway": "Rodovia Federal"},
+            {"id": 29, "name": "Posto Monte Carlo 1", "desc": "", "lat": -25.845795, "lng": -49.0660819, "highway": "Rodovia Federal"},
+            {"id": 30, "name": "Posto Monte Carlo 2", "desc": "", "lat": -25.8644383, "lng": -49.0886161, "highway": "Rodovia Federal"},
+            {"id": 31, "name": "Posto Dom Pedro", "desc": "", "lat": -19.554032, "lng": -42.5401345, "highway": "Rede Dom Pedro"},
+            {"id": 32, "name": "Posto Dom Pedro V", "desc": "", "lat": -19.3400512, "lng": -42.4939223, "highway": "Rede Dom Pedro"},
+            {"id": 33, "name": "Posto Dom Pedro - João Monlevade", "desc": "", "lat": -19.822765, "lng": -43.1593929, "highway": "Rede Dom Pedro"},
+            {"id": 34, "name": "Posto Dom Pedro - Sabará", "desc": "", "lat": -19.8517596, "lng": -43.8055627, "highway": "Rede Dom Pedro"},
+            {"id": 35, "name": "Posto Dom Pedro - Betim", "desc": "", "lat": -19.946114, "lng": -44.225574, "highway": "Rede Dom Pedro"},
+            {"id": 36, "name": "Posto Dom Pedro - Oliveira", "desc": "", "lat": -20.6976585, "lng": -44.8291419, "highway": "Rede Dom Pedro"},
+            {"id": 37, "name": "Posto Dom Pedro - Campo Belo", "desc": "", "lat": -20.8876412, "lng": -45.276381, "highway": "Rede Dom Pedro"},
+            {"id": 38, "name": "Posto Dom Pedro - Três Corações", "desc": "", "lat": -21.6883719, "lng": -45.2443907, "highway": "Rede Dom Pedro"},
+            {"id": 39, "name": "Posto Dom Pedro - Caxambu", "desc": "", "lat": -21.9765181, "lng": -44.9312948, "highway": "Rede Dom Pedro"},
+            {"id": 40, "name": "Posto Dom Pedro - Itajubá", "desc": "", "lat": -22.4276581, "lng": -45.4553819, "highway": "Rede Dom Pedro"},
+            {"id": 41, "name": "Posto Dom Pedro - Lorena", "desc": "", "lat": -22.738192, "lng": -45.127391, "highway": "Rede Dom Pedro"},
+            {"id": 42, "name": "Posto Dom Pedro - Caçapava", "desc": "", "lat": -23.102837, "lng": -45.711928, "highway": "Rede Dom Pedro"},
+            {"id": 43, "name": "Posto Dom Pedro - São José dos Campos", "desc": "", "lat": -23.190123, "lng": -45.882192, "highway": "Rede Dom Pedro"},
+            {"id": 44, "name": "Posto Dom Pedro - Taubaté", "desc": "", "lat": -23.021928, "lng": -45.553928, "highway": "Rede Dom Pedro"},
+            {"id": 45, "name": "Posto Dom Pedro - Guaratinguetá", "desc": "", "lat": -22.812938, "lng": -45.192837, "highway": "Rede Dom Pedro"},
+            {"id": 46, "name": "Posto Dom Pedro - Resende", "desc": "", "lat": -22.478291, "lng": -44.453829, "highway": "Rede Dom Pedro"},
+            {"id": 47, "name": "Posto Dom Pedro - Barra Mansa", "desc": "", "lat": -22.540291, "lng": -44.173829, "highway": "Rede Dom Pedro"},
+            {"id": 48, "name": "Posto Dom Pedro - Volta Redonda", "desc": "", "lat": -22.520291, "lng": -44.103829, "highway": "Rede Dom Pedro"},
+            {"id": 49, "name": "Posto Dom Pedro - Piraí", "desc": "", "lat": -22.628291, "lng": -43.893829, "highway": "Rede Dom Pedro"},
+            {"id": 50, "name": "Posto Dom Pedro - Seropédica", "desc": "", "lat": -22.748291, "lng": -43.713829, "highway": "Rede Dom Pedro"},
+            {"id": 51, "name": "Posto Aldo - Rondonópolis", "desc": "", "lat": -16.468291, "lng": -54.633829, "highway": "Rede Aldo"},
+            {"id": 52, "name": "Posto Aldo - Primavera do Leste", "desc": "", "lat": -15.558291, "lng": -54.293829, "highway": "Rede Aldo"},
+            {"id": 53, "name": "Posto Aldo - Campo Verde", "desc": "", "lat": -15.548291, "lng": -55.173829, "highway": "Rede Aldo"},
+            {"id": 54, "name": "Posto Aldo - Sorriso", "desc": "", "lat": -12.558291, "lng": -55.723829, "highway": "Rede Aldo"},
+            {"id": 55, "name": "Posto Aldo - Sinop", "desc": "", "lat": -11.868291, "lng": -55.503829, "highway": "Rede Aldo"},
+            {"id": 56, "name": "Posto Aldo - Lucas do Rio Verde", "desc": "", "lat": -13.068291, "lng": -55.913829, "highway": "Rede Aldo"},
+            {"id": 57, "name": "Posto Pelanda - Curitiba", "desc": "", "lat": -25.428291, "lng": -49.273829, "highway": "Rede Pelanda"},
+            {"id": 58, "name": "Posto Pelanda - Colombo", "desc": "", "lat": -25.298291, "lng": -49.223829, "highway": "Rede Pelanda"},
+            {"id": 59, "name": "Posto Pelanda - Araucária", "desc": "", "lat": -25.598291, "lng": -49.403829, "highway": "Rede Pelanda"},
+            {"id": 60, "name": "Posto Pelanda - Fazenda Rio Grande", "desc": "", "lat": -25.658291, "lng": -49.303829, "highway": "Rede Pelanda"},
+            {"id": 61, "name": "Graal - Jundiaí", "desc": "", "lat": -23.188291, "lng": -46.883829, "highway": "Rede Graal"},
+            {"id": 62, "name": "Graal - Paulínia", "desc": "", "lat": -22.758291, "lng": -47.153829, "highway": "Rede Graal"},
+            {"id": 63, "name": "Graal - Limeira", "desc": "", "lat": -22.568291, "lng": -47.403829, "highway": "Rede Graal"},
+            {"id": 64, "name": "Graal - Araras", "desc": "", "lat": -22.358291, "lng": -47.383829, "highway": "Rede Graal"},
+            {"id": 65, "name": "Graal - São Carlos", "desc": "", "lat": -22.018291, "lng": -47.893829, "highway": "Rede Graal"},
+            {"id": 66, "name": "Graal - Ribeirão Preto", "desc": "", "lat": -21.178291, "lng": -47.813829, "highway": "Rede Graal"},
+            {"id": 67, "name": "Posto Sinuelo - Curitiba", "desc": "", "lat": -25.528291, "lng": -49.203829, "highway": "Rodovia Federal"},
+            {"id": 68, "name": "Posto Sinuelo - Registro", "desc": "", "lat": -24.488291, "lng": -47.843829, "highway": "Rodovia Federal"},
+            {"id": 69, "name": "Posto Monte Carlo - Campinas", "desc": "", "lat": -22.908291, "lng": -47.063829, "highway": "Rodovia Federal"},
+            {"id": 70, "name": "Posto Monte Carlo - São Paulo", "desc": "", "lat": -23.558291, "lng": -46.633829, "highway": "Rodovia Federal"}
+        ];
+
+        let map, userLatLng = null, markers = {};
+
+        document.getElementById('station-count').innerText = `${stations.length} postos cadastrados`;
+
+        // Inicializar o Mapa
+        function initMap() {
+            map = L.map('map').setView([-15.7889, -49.9596], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            renderMarkers(stations);
+            renderList(stations);
+            trackUserLocation();
+        }
+
+        function renderMarkers(data) {
+            // Limpar antigos se houver
+            Object.values(markers).forEach(m => map.removeLayer(m));
+            markers = {};
+
+            data.forEach(station => {
+                const marker = L.marker([station.lat, station.lng]).addTo(map);
+                marker.bindPopup(`
+                    <div class="p-1 text-slate-900">
+                        <h3 class="font-bold text-sm">${station.name}</h3>
+                        <p class="text-xs text-slate-600 mb-2">${station.highway} ${station.desc}</p>
+                        <div class="flex gap-2">
+                            <a href="https://www.waze.com/ul?ll=${station.lat},${station.lng}&navigate=yes" target="_blank" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold"><i class="fa-brands fa-waze"></i> Waze</a>
+                            <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="bg-emerald-600 text-white px-2 py-1 rounded text-xs font-semibold"><i class="fa-solid fa-map-location-dot"></i> Maps</a>
+                        </div>
+                    </div>
+                `);
+                markers[station.id] = marker;
+            });
+        }
+
+        function renderList(data) {
+            const listEl = document.getElementById('view-list');
+            listEl.innerHTML = '';
+            
+            if(data.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm">Nenhum posto encontrado.</div>`;
+                return;
+            }
+
+            data.forEach(station => {
+                let distText = '';
+                if(userLatLng) {
+                    const dist = calcDistance(userLatLng[0], userLatLng[1], station.lat, station.lng);
+                    distText = `<span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded text-[10px] font-bold"><i class="fa-solid fa-route"></i> ${dist.toFixed(1)} km</span>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col justify-between shadow";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-bold text-sm text-slate-100">${station.name}</h3>
+                            ${distText}
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5">${station.highway} ${station.desc}</p>
+                    </div>
+                    <div class="flex gap-2 mt-3 pt-2 border-t border-slate-700/60">
+                        <a href="https://www.waze.com/ul?ll=${station.lat},${station.lng}&navigate=yes" target="_blank" class="flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-brands fa-waze mr-1"></i> Waze</a>
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}" target="_blank" class="flex-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 py-1.5 rounded-lg text-xs font-semibold text-center transition"><i class="fa-solid fa-map-location-dot mr-1"></i> Google Maps</a>
+                        <button onclick="focusOnMap(${station.lat}, ${station.lng})" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function switchTab(tab) {
+            const mapBtn = document.getElementById('btn-map');
+            const listBtn = document.getElementById('btn-list');
+            const mapEl = document.getElementById('view-map');
+            const listEl = document.getElementById('view-list');
+
+            if(tab === 'map') {
+                mapBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition";
+                listBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition";
+                mapEl.classList.remove('hidden');
+                listEl.classList.add('hidden');
+                setTimeout(() => { map.invalidateSize(); }, 200);
+            } else {
+                listBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-900 transition";
+                mapBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 transition";
+                listEl.classList.remove('hidden');
+                mapEl.classList.add('hidden');
+            }
+        }
+
+        function filterStations() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = stations.filter(s => 
+                s.name.toLowerCase().includes(query) || 
+                s.highway.toLowerCase().includes(query) || 
+                s.desc.toLowerCase().includes(query)
+            );
+            renderMarkers(filtered);
+            renderList(filtered);
+        }
+
+        function focusOnMap(lat, lng) {
+            switchTab('map');
+            map.setView([lat, lng], 14);
+        }
+
+        function trackUserLocation() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition(position => {
+                    userLatLng = [position.coords.latitude, position.coords.longitude];
+                    document.getElementById('gps-status').innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> GPS Ativo`;
+                    
+                    // Ordenar lista por proximidade se estiver na lista
+                    stations.sort((a, b) => {
+                        const distA = calcDistance(userLatLng[0], userLatLng[1], a.lat, a.lng);
+                        const distB = calcDistance(userLatLng[0], userLatLng[1], b.lat, b.lng);
+                        return distA - distB;
+                    });
+                    renderList(stations);
+                }, error => {
+                    document.getElementById('gps-status').innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i> GPS Indisponível`;
+                }, { enableHighAccuracy: true });
+            }
+        }
+
+        function centerOnUser() {
+            if(userLatLng) {
+                switchTab('map');
+                map.setView(userLatLng, 12);
+            } else {
+                alert("Aguardando sinal do GPS...");
+            }
+        }
+
+        function calcDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Raio da terra em km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function deg2rad(deg) { return deg * (Math.PI/180); }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
